@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111816">
+  <meta name="description" content="A local fantasy chess game. Command your army, challenge the court, and watch every capture become a battle.">
+  <title>Battle Chess — The King's Table</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="engine.js"></script>
+  <script defer src="ai.js"></script>
+  <script defer src="pieces.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Battle Chess home">
+      <svg class="brand-mark" viewBox="0 0 48 52" aria-hidden="true"><path d="M7 8 24 3 41 8v21c0 11-17 20-17 20S7 40 7 29Z"/><path d="m15 15 19 22M34 15 15 37M12 31l9 8m7-22 8 7"/><path d="m13 12 5 2-3 4Zm22 0-5 2 3 4Z"/></svg>
+      <span>BATTLE<span class="brand-chess">CHESS</span><small>THE KING'S TABLE</small></span>
+    </a>
+    <nav class="top-actions" aria-label="Game controls">
+      <button class="text-button" id="rulesButton">How to play</button>
+      <span class="top-divider" aria-hidden="true"></span>
+      <button class="sound-button" id="soundButton" aria-pressed="false" title="Enable battle sounds">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4Z"/><path id="soundWaves" d="m16 9 6 6m0-6-6 6"/></svg><span id="soundLabel">Sound off</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="game-shell">
+    <section class="game-heading">
+      <div><p class="eyebrow"><span class="ornament">✦</span> A GAME OF KINGS. A CLASH OF ARMIES.</p><h1>Every move is a battle.</h1></div>
+      <button class="primary-button" id="newGameButton"><span aria-hidden="true">+</span> New battle</button>
+    </section>
+
+    <div class="arena-layout">
+      <aside class="army-sidebar" aria-label="The armies">
+        <section class="army-card enemy-card">
+          <div class="army-crest enemy-crest" id="enemyPortrait" aria-hidden="true"></div>
+          <p class="eyebrow">THE CHALLENGER</p><h2 id="enemyName">The Obsidian Court</h2>
+          <p class="army-description" id="opponentDescription">A calculating foe. An unforgiving board.</p>
+          <div class="army-badge" id="opponentBadge">COMPUTER · TACTICIAN</div>
+          <div class="army-divider"></div><p class="small-label" id="enemyFallenLabel">FALLEN ROYAL GUARD</p>
+          <div class="captured-tray" id="capturedWhite" aria-label="Captured white pieces"><span class="empty-captures">No pieces fallen</span></div>
+        </section>
+
+        <div class="versus" aria-hidden="true"><span></span>VS<span></span></div>
+
+        <section class="army-card friendly-card">
+          <div class="army-crest friendly-crest" id="friendlyPortrait" aria-hidden="true"></div>
+          <p class="eyebrow" id="friendlyRole">YOUR ARMY</p><h2 id="friendlyName">The Royal Guard</h2>
+          <p class="army-description" id="playerDescription">Courage in your ranks. Strategy in your hands.</p>
+          <div class="army-badge gold-badge" id="playerBadge">YOU · WHITE PIECES</div>
+          <div class="army-divider"></div><p class="small-label" id="friendlyFallenLabel">FALLEN OBSIDIAN COURT</p>
+          <div class="captured-tray" id="capturedBlack" aria-label="Captured black pieces"><span class="empty-captures">No pieces fallen</span></div>
+        </section>
+      </aside>
+
+      <section class="board-section" aria-label="Chess game">
+        <div class="board-toolbar"><span class="mode-label" id="modeLabel">SOLO CAMPAIGN</span><div class="turn-label" id="turnLabel"><span class="turn-emblem" aria-hidden="true">♔</span> White to move</div><span class="match-kind">UNTIMED</span></div>
+        <div class="board-scene">
+          <div class="board-surround">
+            <div class="corner-flourish corner-tl" aria-hidden="true"></div><div class="corner-flourish corner-tr" aria-hidden="true"></div>
+            <div class="corner-flourish corner-bl" aria-hidden="true"></div><div class="corner-flourish corner-br" aria-hidden="true"></div>
+            <div class="rank-labels" id="rankLabels" aria-hidden="true"></div>
+            <div class="board" id="board" role="grid" aria-label="Chessboard. Select a piece, then a highlighted square. Arrow keys move focus." aria-rowcount="8" aria-colcount="8"></div>
+            <div class="move-layer" id="moveLayer" aria-hidden="true"></div>
+            <div class="file-labels" id="fileLabels" aria-hidden="true"></div>
+          </div>
+          <div class="table-edge" aria-hidden="true"></div>
+        </div>
+        <div class="board-bottom-bar">
+          <p class="game-status" id="gameStatus" role="status" aria-live="polite">Select a piece to command your army.</p>
+          <div class="board-tools">
+            <button class="icon-button" id="undoButton" title="Take back the last turn" aria-label="Undo last turn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5-6 6 6 6M3 11h11a6 6 0 0 1 0 12"/></svg></button>
+            <button class="icon-button" id="flipButton" title="View from the other side" aria-label="Flip board"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-4-4m4 12H5l4 4M5 8v7m14 1V9"/></svg></button>
+          </div>
+        </div>
+        <div class="board-caption"><span class="rule-line"></span><span id="boardCaption">CHOOSE YOUR MOVES. LET YOUR PIECES DO THE FIGHTING.</span><span class="rule-line"></span></div>
+      </section>
+
+      <aside class="chronicle-sidebar" aria-label="Match history">
+        <section class="chronicle-card">
+          <div class="panel-heading"><h2>Battle chronicle</h2><span class="move-count" id="moveCount">0 MOVES</span></div>
+          <div class="history-columns" aria-hidden="true"><span>TURN</span><span>ROYAL</span><span>OBSIDIAN</span></div>
+          <div class="move-history" id="moveHistory" aria-label="Move history"></div>
+          <div class="history-empty" id="historyEmpty"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="m14 10 6 3-4 4Zm20 0-6 3 4 4ZM16 15l18 23M32 15 14 38M9 33l9 7m12-7 9 7"/></svg><h3>The field awaits.</h3><p>Your story begins<br>with a single move.</p></div>
+          <div class="chronicle-footer"><span class="turn-ring" id="turnRing" aria-hidden="true"></span><span id="chronicleStatus">Your move, commander.</span></div>
+        </section>
+        <section class="battle-note"><span class="small-label">THE LAST CLASH</span><p id="lastClash">When pieces meet,<br>legends are made.</p><button class="text-button replay-button" id="replayButton" hidden>Replay battle</button><div class="clash-decoration" aria-hidden="true">✦</div></section>
+        <p class="sidebar-footnote">The rules are timeless.<br>The battles are anything but.</p>
+      </aside>
+    </div>
+    <footer class="page-footer"><span>ORIGINAL FANTASY CHESS · PLAYED LOCALLY</span><span>CASTLING · EN PASSANT · PROMOTION</span></footer>
+  </main>
+
+  <dialog class="setup-dialog" id="setupDialog" aria-labelledby="setupTitle">
+    <button class="dialog-close" id="closeSetup" aria-label="Close new battle settings">×</button><p class="eyebrow">THE WAR COUNCIL</p><h2 id="setupTitle">Raise your banners.</h2><p class="dialog-intro">Choose your army. Make your opening move.</p>
+    <form id="setupForm">
+      <label for="gameMode">Opponent</label><select id="gameMode"><option value="ai">The computer</option><option value="local">A friend on this device</option></select>
+      <div id="computerOptions"><label for="playerSide">Your army</label><select id="playerSide"><option value="w">Royal Guard · White</option><option value="b">Obsidian Court · Black</option></select><label for="difficulty">Difficulty</label><select id="difficulty"><option value="1">Squire · Learning the battlefield</option><option value="2" selected>Tactician · A worthy opponent</option><option value="3">Warlord · Think before you strike</option></select></div>
+      <label class="check-option"><input type="checkbox" id="battleAnimations" checked><span>Show capture battles</span></label><p class="setup-note">Starting a new battle replaces your saved match.</p><button class="primary-button wide-button" type="submit">Begin battle</button>
+    </form>
+  </dialog>
+
+  <dialog class="rules-dialog" id="rulesDialog" aria-labelledby="rulesTitle"><button class="dialog-close" id="closeRules" aria-label="Close instructions">×</button><p class="eyebrow">THE COMMANDER'S HANDBOOK</p><h2 id="rulesTitle">A familiar game.<br>A fiercer battlefield.</h2><p>Play standard chess. Select one of your pieces, then choose a highlighted destination. A glowing ring marks a possible capture. The attacking piece always wins its battle.</p><div class="rules-grid"><div><strong>Protect your king</strong><p>Check must be answered. Checkmate ends the battle.</p></div><div><strong>Every rule included</strong><p>Castle, capture en passant, and choose a promotion.</p></div><div><strong>Take your time</strong><p>No clock. Use Undo to take back a turn, or Flip to change your view.</p></div><div><strong>Your match stays here</strong><p>Progress saves in this browser when storage is available.</p></div></div><p class="keyboard-note">Keyboard: use arrow keys across the board; Enter or Space selects a square. Escape clears a selection or skips a battle.</p></dialog>
+
+  <dialog class="promotion-dialog" id="promotionDialog" aria-labelledby="promotionTitle"><p class="eyebrow">A NEW CHAMPION</p><h2 id="promotionTitle">Choose your promotion.</h2><div id="promotionChoices" class="promotion-choices"></div><button class="text-button" id="cancelPromotion">Cancel move</button></dialog>
+
+  <dialog class="duel-dialog" id="duelDialog" aria-labelledby="duelTitle"><div class="duel-topline"><span class="eyebrow">STEEL MEETS DESTINY</span><button class="text-button" id="skipBattle">Skip battle</button></div><h2 id="duelTitle">The armies clash.</h2><p id="duelDescription"></p><div class="duel-arena" id="duelArena"><div class="duel-moon" aria-hidden="true"></div><div class="duel-floor" aria-hidden="true"></div><div class="duelist attacker" id="duelAttacker"></div><div class="duelist defender" id="duelDefender"></div><div class="duel-impact" aria-hidden="true">✦</div><div class="duel-shockwave" aria-hidden="true"></div></div><div class="duel-bottomline"><span id="duelResult">One square. One victor.</span><span class="battle-progress" aria-hidden="true"></span></div></dialog>
+
+  <noscript><p class="noscript">Enable JavaScript to play Battle Chess.</p></noscript>
+</body>
+</html>
