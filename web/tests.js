@@ -72,7 +72,7 @@
     const frame = BattleChessPixels.unpack({ w: 2, h: 1, x: 0, y: 0, encoding: 'indexed8', pixels: 'GBs=' });
     assert(frame.indices[0] === 24 && frame.indices[1] === 27, 'Amiga palette indices truncated');
     for (const [provider, source, expected] of [
-      [amigaAssets, [24, 27], [238, 34, 119, 255, 102, 0, 68, 255]],
+      [amigaAssets, [24, 27], [238, 34, 34, 255, 102, 0, 0, 255]],
       [dosAssets, [1, 9], [170, 0, 0, 255, 255, 85, 85, 255]]
     ]) {
       const renderer = new OriginalBoard(document.createElement('canvas'), provider, {});
@@ -82,6 +82,18 @@
     let rejected = false;
     try { BattleChessPixels.unpack({ w: 2, h: 1, encoding: 'indexed8', pixels: '' }); } catch (_) { rejected = true; }
     assert(rejected, 'truncated indexed pixels accepted');
+  });
+  await test('Amiga red shades preserve blue and shared colors', () => {
+    const renderer = new OriginalBoard(document.createElement('canvas'), amigaAssets, {});
+    const frame = { w: 7, h: 1, indices: new Uint8Array([24, 25, 26, 27, 0, 8, 18]) };
+    for (const [red, expected] of [
+      [false, [51, 51, 255, 255, 34, 34, 187, 255, 17, 17, 136, 255, 17, 17, 102, 255]],
+      [true, [238, 34, 34, 255, 187, 17, 17, 255, 153, 0, 0, 255, 102, 0, 0, 255]]
+    ]) {
+      expected.push(0, 0, 0, 0, 238, 221, 221, 255, 255, 187, 136, 255);
+      const pixels = renderer.image(frame, red).getContext('2d').getImageData(0, 0, 7, 1).data;
+      assert(Array.from(pixels).every((value, i) => value === expected[i]), 'incorrect ' + (red ? 'red' : 'blue') + ' colors');
+    }
   });
   await test('Amiga red army matches the original F8 blitter minterm', () => {
     for (let index = 0; index < 32; index++) {

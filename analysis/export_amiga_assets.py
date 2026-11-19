@@ -116,6 +116,8 @@ def main():
     if len(executable) != 84716 or struct.unpack_from('>5hBBHH4I', executable, 75326)[2:5] != (320, 200, 5):
         raise ValueError('Unexpected executable screen data')
     palette = [[((v >> shift) & 15) * 17 for shift in (8, 4, 0)] for v in struct.unpack_from('>32H', executable, 0x126a2)]
+    # User-requested red uniforms; keep the original palette intact on the source disk.
+    palette[28:32] = [[238, 34, 34], [187, 17, 17], [153, 0, 0], [102, 0, 0]]
     specs = [('ALLCANM1', x, False) for x in (0, 10289, 12303)]
     specs += [('ALLCANM2', x, True) for x in WALK]
     for delta, base in zip(COMBAT, BASE, strict=True):
@@ -132,7 +134,7 @@ def main():
               'redMap': {'24': 28, '25': 29, '26': 30, '27': 31},
               'sources': {'pixels': {'file': SOURCE, 'sha256': PIXEL_HASH, 'url': 'https://archive.org/download/Battle_Chess_1988_Interplay_cr_Dragon_Inc/Battle_Chess_1988_Interplay_cr_Dragon_Inc.adf'},
                           'palette': {'file': 'BattleChess.adf', 'sha256': PALETTE_HASH, 'executableOffset': '0x126a2'}},
-              'sourceNote': 'Pixel stream omits sectors 880 and 881. Group file/metadataOffset values are DOS compatibility keys; sourceOffset and headerOffset identify Amiga logical stream offsets.',
+              'sourceNote': 'Pixel stream omits sectors 880 and 881. Group file/metadataOffset values are DOS compatibility keys; sourceOffset and headerOffset identify Amiga logical stream offsets. Red uniform palette entries 28–31 are customized from magenta to red.',
               'groups': groups, 'blocks': [], 'screens': dos['screens'], 'tables': dos['tables']}
     serialized = json.dumps(output, separators=(',', ':'))
     if target.exists():

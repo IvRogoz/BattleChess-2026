@@ -104,7 +104,10 @@ battles. It is saved with the match and survives reload, imported saves, new
 games and replay. Older saves default to DOS. Switching preserves the position;
 the selector is disabled during an animation.
 
-Amiga sprites use the original 32-color RGB4 palette. Both editions use a
+Amiga sprites use the 32-color RGB4 palette with its four magenta uniform
+shades changed to red at the user's request. Blue pieces and the title keep
+their existing colors; the original palette remains in the source ADF.
+Both editions use a
 320×200 screen and the same 253 sequence lengths; the Amiga artwork adds color
 shading rather than extra resolution or animation frames. This setting selects
 sprites; the board, chess logic, sound and playback-speed controls remain shared.

@@ -54,6 +54,12 @@ executable. That executable's unaffected palette supplies the exported colors.
   indices 28–31 and preserves every other palette entry. An exhaustive test
   checks all 32 indices against the original minterm.
 
+At the user's request, the web palette's entries 28–31 use red shades
+`#ee2222`, `#bb1111`, `#990000`, and `#660000` instead of the source's magenta.
+The index remapping above is unchanged. All decoded base/sequence frames use
+indices below 28 before army recoloring, so blue pieces retain their original
+colors. The original ADF palette and the title's separate palette are preserved.
+
 The web manifest uses legacy DOS group-family keys for the existing renderer;
 `sourceFile`, `sourceOffset`, and `headerOffset` retain actual Amiga provenance.
 The single Amiga flat-icon bank maps to the renderer's default flat-bank key.
