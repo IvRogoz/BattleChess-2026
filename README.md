@@ -4,6 +4,8 @@ A restoration of the original Battle Chess for Windows and web browsers.
 **Ivan Rogoz** originated this restoration effort:
 [warped3.substack.com](https://warped3.substack.com).
 
+**Codex (OpenAI)** — AI contributor to the restoration implementation and verification.
+
 ![Original Amiga Battle Chess title screen](web/assets/title-amiga.png)
 
 Both editions include DOS and Amiga graphics, original walking and battle
