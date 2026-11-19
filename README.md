@@ -41,5 +41,15 @@ Build instructions and checks are in [desktop/](desktop/README.md) and
 [html/](html/README.md). Release packages and SHA256 checksums are in
 [releases/2026/](releases/2026/RELEASE_NOTES.md).
 
+## Sprite compression skill
+
+The [sprite compression skill](sprite-xor-compression/SKILL.md) adapts the
+Battle Chess technique to other game engines using their existing tooling. It
+offers guidance for lossless sprite animation compression with base frames,
+temporal XOR rectangle patches, vertical row XOR prediction, and Huffman coding,
+while preserving palettes, alpha, origins, timing, and events. Its
+[codec reference](sprite-xor-compression/references/codec.md) includes test
+vectors and the distinctions between the original DOS and Amiga formats.
+
 Original Battle Chess: Interplay, 1988. This restoration uses the supplied
 original resources; its chess engine and browser integration are native code.
