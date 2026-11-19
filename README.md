@@ -4,10 +4,21 @@ A restoration of the original Battle Chess for Windows and web browsers.
 **Ivan Rogoz** originated this restoration effort:
 [warped3.substack.com](https://warped3.substack.com).
 
+![Original Amiga Battle Chess title screen](web/assets/title-amiga.png)
+
 Both editions include DOS and Amiga graphics, original walking and battle
 animations, original sound effects, local two-player and computer play, save/load,
 and the original-style game-over boxes. Amiga graphics are the default.
 Checkmate ends at the final legal move, with both kings remaining on the board.
+
+## Gameplay
+
+This 51-second recording shows Amiga graphics, original sound, and a legal
+checkmate with the original-style game-over message.
+
+[![Gameplay preview showing the Amiga game-over message](recordings/game-over-amiga-board.png)](recordings/battle-chess-amiga-game-over.mp4)
+
+[Play or download the gameplay video (MP4)](recordings/battle-chess-amiga-game-over.mp4)
 
 ## Windows EXE edition
 
