@@ -64,6 +64,8 @@ disassembly/data findings, not observations of a running DOS game.
 - Turn task 2 steps clockwise or counterclockwise by one direction, or two for
   bishop/knight/rook; 180-degree ties choose negative. It selects the group's
   turn bank and per-facing timing (0x730c–0x7528).
+- The post-move king cleanup queues turn task 2 toward direction 0 for red
+  or 4 for blue before transferring board occupancy (0xc794–0xc7ec).
 - Rook task 6 selects sequence `14+argument`. Arguments 0/1 transform a castle
   into its creature; 2/3 restore it (0x66ec–0x6753, 0x724d). Restored castle
   orientation is 7 for screen x>160 and 3 otherwise. Original internal type map

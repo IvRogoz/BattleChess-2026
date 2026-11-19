@@ -1,7 +1,6 @@
 """Static decoder recovered from CHESS.EXE e23a/e277. Does not execute game code."""
 from pathlib import Path
 import struct
-from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
 EGA = [(0,0,0),(0,0,170),(0,170,0),(0,170,170),(170,0,0),(170,0,170),(170,85,0),(170,170,170),
@@ -19,8 +18,8 @@ class Bits:
         return value
 
 
-def decode(data,offset):
-    size,other=struct.unpack_from('<II',data,offset)
+def decode(data,offset,byte_order='<'):
+    size,other=struct.unpack_from(byte_order+'II',data,offset)
     if size>16_000_000:raise ValueError('Invalid output size')
     bits=Bits(data,offset+8);symbols=[]
     def tree(depth=0):
@@ -41,6 +40,7 @@ def decode(data,offset):
 
 
 def initial_frames():
+    from PIL import Image
     data=(ROOT/'ALLCANM1').read_bytes();metadata=[];offset=0
     while data[offset:offset+4]!=b'\0\0\0\0':
         metadata.append(tuple(data[offset:offset+4]));offset+=4
@@ -63,6 +63,7 @@ def initial_frames():
 
 
 def main():
+    from PIL import Image, ImageDraw
     frames,end,other=initial_frames()
     sheet=Image.new('RGB',(8*150,6*220),'#303030');draw=ImageDraw.Draw(sheet)
     for i,(image,meta) in enumerate(frames):

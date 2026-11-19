@@ -56,18 +56,49 @@
     assert(mate.status().reason === 'checkmate' && mate.status().winner === 'w');
     assert(chooseChessMove('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1') === null);
   });
-  let assets;
-  await test('Load original assets', async () => {
+  let assets, dosAssets, amigaAssets;
+  await test('Load DOS assets', async () => {
     const response = await fetch('assets/assets.json');
     assert(response.ok, 'HTTP ' + response.status);
-    assets = new OriginalAssets(await response.json());
+    dosAssets = new OriginalAssets(await response.json());
+  });
+  await test('Load Amiga assets', async () => {
+    const response = await fetch('assets/amiga.json'); assert(response.ok, 'HTTP ' + response.status);
+    amigaAssets = new OriginalAssets(await response.json());
+    assert(amigaAssets.data.palette.length === 32, 'expected 32-color palette');
+    assert(amigaAssets.data.groups.reduce((n, group) => n + group.frames.length, 0) === 1676, 'unexpected Amiga frame count');
+  });
+  await test('Five-bit pixels and exact army colors survive rendering', () => {
+    const frame = BattleChessPixels.unpack({ w: 2, h: 1, x: 0, y: 0, encoding: 'indexed8', pixels: 'GBs=' });
+    assert(frame.indices[0] === 24 && frame.indices[1] === 27, 'Amiga palette indices truncated');
+    for (const [provider, source, expected] of [
+      [amigaAssets, [24, 27], [238, 34, 119, 255, 102, 0, 68, 255]],
+      [dosAssets, [1, 9], [170, 0, 0, 255, 255, 85, 85, 255]]
+    ]) {
+      const renderer = new OriginalBoard(document.createElement('canvas'), provider, {});
+      const image = renderer.image({ w: 2, h: 1, x: 0, y: 0, indices: new Uint8Array(source) }, true);
+      assert(Array.from(image.getContext('2d').getImageData(0, 0, 2, 1).data).every((value, i) => value === expected[i]), 'army palette mismatch');
+    }
+    let rejected = false;
+    try { BattleChessPixels.unpack({ w: 2, h: 1, encoding: 'indexed8', pixels: '' }); } catch (_) { rejected = true; }
+    assert(rejected, 'truncated indexed pixels accepted');
+  });
+  await test('Amiga red army matches the original F8 blitter minterm', () => {
+    for (let index = 0; index < 32; index++) {
+      const a = index >> 2 & 1, b = index >> 3 & 1, c = index >> 4 & 1;
+      const bit = 0xf8 >> (4 * a + 2 * b + c) & 1;
+      const expected = index & ~4 | bit << 2;
+      assert((amigaAssets.redMap[index] ?? index) === expected, 'palette entry ' + index);
+    }
   });
   function frameCheck(frame) {
     assert(frame && Number.isInteger(frame.w) && Number.isInteger(frame.h) && frame.w > 0 && frame.h > 0 && frame.w <= 512 && frame.h <= 512, 'invalid frame dimensions');
     assert(Number.isFinite(frame.x) && Number.isFinite(frame.y) && Math.abs(frame.x) <= 512 && Math.abs(frame.y) <= 512, 'invalid frame anchor');
     assert(frame.indices && frame.indices.length === frame.w * frame.h, 'invalid frame buffer');
   }
-  await test('32 initial standing sprites in both views', () => {
+  for (const [label, provider] of [['DOS', dosAssets], ['Amiga', amigaAssets]]) {
+  assets = provider;
+  await test(label + ': 32 initial standing sprites in both views', () => {
     assert(assets, 'assets unavailable');
     const codes = assets.tables.initialBoard.filter(Boolean);
     assert(codes.length === 32, 'expected 32 pieces');
@@ -77,7 +108,7 @@
       assert(frame.indices.some(pixel => pixel !== 0), 'empty standing sprite');
     }
   });
-  await test('Walk animations for every piece and orientation', () => {
+  await test(label + ': walk animations for every piece and orientation', () => {
     assert(assets, 'assets unavailable');
     for (let type = 1; type <= 6; type++) for (let direction = 0; direction < 8; direction++) {
       const frames = assets.walk(type | direction << 3);
@@ -85,14 +116,14 @@
       frames.forEach(frameCheck);
     }
   });
-  await test('Turning frames for every valid direction', () => {
+  await test(label + ': turning frames for every valid direction', () => {
     for (let type = 1; type <= 6; type++) for (let from = 0; from < 8; from++) for (let to = 0; to < 8; to++) {
       if ([1, 3, 6].includes(type) && (from & 1) !== (to & 1)) continue;
       const frames = assets.turn(type | from << 3, to);
       assert(from === to || frames.length > 0, 'missing turn'); frames.forEach(frameCheck);
     }
   });
-  await test('Rook morphs reconstruct the exact original castle raster', () => {
+  await test(label + ': rook morphs reconstruct the exact original castle raster', () => {
     const group = assets.groups.get(51780), expected = assets.frame(assets.main.frames[38]);
     const pixel = (frame, x, y) => {
       x += frame.x; y += frame.y;
@@ -105,7 +136,7 @@
       for (let y = top; y < bottom; y++) for (let x = left; x < right; x++) assert(pixel(actual, x, y) === pixel(expected, x, y), 'corrupted delta raster ' + id);
     }
   });
-  await test('All 36 combat pairings and both actors', () => {
+  await test(label + ': all 36 combat pairings and both actors', () => {
     assert(assets, 'assets unavailable');
     for (const attacker of 'bknpqr') for (const victim of 'bknpqr') {
       const players = assets.combat(attacker, victim);
@@ -121,13 +152,14 @@
       }
     }
   });
-  await test('Board anchors hit all squares in both views', () => {
+  await test(label + ': board anchors hit all squares in both views', () => {
     assert(assets, 'assets unavailable');
     for (const flat of [false, true]) for (let square = 0; square < 64; square++) {
       const point = assets.point(square, flat);
       assert(assets.hit(point.x, point.y, flat) === square, 'square ' + square + ', flat ' + flat);
     }
   });
+  }
   await test('Original sound blocks decode and reject invalid headers', async () => {
     for (const offset of OriginalAudio.SoundOffsets) {
       const response = await fetch('assets/blocks/allcanm1-' + offset + '.bin');
@@ -147,7 +179,7 @@
   });
   await test('Load controller checks', async () => {
     const response = await fetch('app.js'); assert(response.ok, 'controller HTTP ' + response.status);
-    const results = await runControllerChecks(await response.text(), assets.data);
+    const results = await runControllerChecks(await response.text(), dosAssets.data, amigaAssets.data);
     for (const result of results) await test(result.name, () => assert(result.passed, result.error));
   });
   lines.push('', passed + ' passed, ' + failed + ' failed');

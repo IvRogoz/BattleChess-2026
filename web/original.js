@@ -12,8 +12,13 @@
     if (frame.indices) return frame;
     const packed = root.atob(frame.pixels), stride = Math.ceil(frame.w / 2);
     const indices = new Uint8Array(frame.w * frame.h);
-    for (let y = 0; y < frame.h; y++) for (let x = 0; x < frame.w; x++) {
-      indices[y * frame.w + x] = (packed.charCodeAt(y * stride + (x >> 1)) >> (x & 1 ? 0 : 4)) & 15;
+    if (frame.encoding === 'indexed8') {
+      if (packed.length !== indices.length) throw new Error('Invalid indexed sprite length');
+      for (let i = 0; i < indices.length; i++) indices[i] = packed.charCodeAt(i);
+    } else {
+      for (let y = 0; y < frame.h; y++) for (let x = 0; x < frame.w; x++) {
+        indices[y * frame.w + x] = (packed.charCodeAt(y * stride + (x >> 1)) >> (x & 1 ? 0 : 4)) & 15;
+      }
     }
     return { w: frame.w, h: frame.h, x: frame.x, y: frame.y, indices };
   }
@@ -38,6 +43,7 @@
     constructor(data) {
       this.data = data;
       this.tables = data.tables;
+      this.redMap = data.redMap || { 1: 4, 9: 12 };
       this.main = data.groups.find(g => g.file === 'ALLCANM1' && g.metadataOffset === 0);
       this.aux = data.groups.find(g => g.file === 'ALLCANM1' && g.metadataOffset === 10289);
       this.groups = new Map(data.groups.filter(g => g.file === 'ALLCANM2').map(g => [g.metadataOffset, g]));
@@ -179,7 +185,7 @@
       for (let i = 0; i < frame.indices.length; i++) {
         let index = frame.indices[i];
         if (!index) continue;
-        if (red && (index === 1 || index === 9)) index += 3;
+        if (red && this.assets.redMap[index] !== undefined) index = this.assets.redMap[index];
         image.data.set(this.assets.data.palette[index], i * 4); image.data[i * 4 + 3] = 255;
       }
       context.putImageData(image, 0, 0); pair[red ? 1 : 0] = canvas; return canvas;

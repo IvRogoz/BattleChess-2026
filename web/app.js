@@ -7,8 +7,9 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const storageKey = 'original-battle-chess-v1';
   const TICK = 2000 / 18.2065;
+  const spriteSets = {};
   let game = new ChessGame(), assets, board, codes, ready = false, started = false;
-  let settings = { mode: 'ai', human: 'w', depth: 2, sound: false, animations: !reduced, speed: 1, view: '3d' };
+  let settings = { mode: 'ai', human: 'w', depth: 2, sound: false, animations: !reduced, speed: 1, view: '3d', sprites: 'dos' };
   let selected = -1, focus = 52, legal = [], busy = false, thinking = false, epoch = 0, skipRequested = false;
   let worker = null, aiTimer = null, cancelAnimation = null, pendingPromotion = null;
   let audio = null, sounds = new Set(), soundEpoch = 0, lastReplay = null, storageWarning = '', animationWarning = '';
@@ -40,7 +41,8 @@
     return { mode: source.mode === 'local' ? 'local' : 'ai', human: source.human === 'b' ? 'b' : 'w',
       depth: [1, 2, 3].includes(source.depth) ? source.depth : 2,
       sound: !!source.sound, animations: !!source.animations && !reduced,
-      speed: [.5, 1, 2].includes(source.speed) ? source.speed : 1, view: source.view === '2d' ? '2d' : '3d' };
+      speed: [.5, 1, 2].includes(source.speed) ? source.speed : 1, view: source.view === '2d' ? '2d' : '3d',
+      sprites: source.sprites === 'amiga' ? 'amiga' : 'dos' };
   }
   function savedGame() { return { version: 1, settings, moves: game.history.map(m => [m.from, m.to, m.promotion || 'q']) }; }
   function parseSave(raw) {
@@ -61,7 +63,9 @@
     result[move.from] = 0;
     if (move.captured && !position[move.to]) result[move.to + (color(move.piece) === 'w' ? 8 : -8)] = 0;
     const type = code & 7;
-    const direction = type === 6 ? assets.point(move.to).x > 160 ? 7 : 3 : move.captured ? [3, 6].includes(type) ? 4 : 5 : assets.direction(move.from, move.to, type);
+    const direction = type === 2 ? code & 64 ? 0 : 4 :
+      type === 6 ? assets.point(move.to).x > 160 ? 7 : 3 :
+      move.captured ? [3, 6].includes(type) ? 4 : 5 : assets.direction(move.from, move.to, type);
     result[move.to] = (code & 71) | direction << 3;
     if (move.promotion) result[move.to] = assets.code(color(move.piece) === 'w' ? move.promotion.toUpperCase() : move.promotion, move.to);
     if (move.piece.toLowerCase() === 'k' && Math.abs(move.to - move.from) === 2) {
@@ -88,7 +92,8 @@
     return chosen ? { from: chosen.from, to: king, piece: game.board[chosen.from], captured: game.board[king], promotion: null } : null;
   }
   function syncControls() {
-    for (const id of ['mode', 'human', 'depth', 'speed', 'view']) $(id).value = String(settings[id]);
+    assets = spriteSets[settings.sprites]; board.assets = assets;
+    for (const id of ['mode', 'human', 'depth', 'speed', 'view', 'sprites']) $(id).value = String(settings[id]);
     for (const id of ['sound', 'animations']) $(id).checked = settings[id];
     $('human').disabled = settings.mode === 'local';
     board.flat = settings.view === '2d';
@@ -116,7 +121,7 @@
     for (const id of ['replay', 'hint']) $(id).disabled = busy || thinking || !started || (id === 'replay' ? !lastReplay : state.over);
     $('force').disabled = !thinking;
     $('skip').hidden = !busy;
-    for (const id of ['view', 'animations', 'speed']) $(id).disabled = busy;
+    for (const id of ['view', 'animations', 'speed', 'sprites']) $(id).disabled = busy;
     $('history').replaceChildren();
     for (let i = 0; i < game.history.length; i += 2) {
       const item = document.createElement('li'); item.textContent = game.history[i].san.padEnd(10) + (game.history[i + 1]?.san || ''); $('history').append(item);
@@ -281,9 +286,12 @@
         return players.every(player => player.done);
       }, token)) return;
       if (!await walk(before, attackerCode, attackerPoint, assets.point(move.to), hidden, [], token, true)) return;
+      movingCode = attackerCode;
     } else {
-      if (!await travel(before, movingCode, move.from, move.to, hidden, [], token)) return;
+      movingCode = await travel(before, movingCode, move.from, move.to, hidden, [], token);
+      if (!movingCode) return;
     }
+    if ((movingCode & 7) === 2 && !await turn(before, movingCode, movingCode & 64 ? 0 : 4, assets.point(move.to), hidden, [], token)) return;
     if ((movingCode & 7) === 6) {
       const direction = move.captured ? 4 : assets.direction(move.from, move.to, 6);
       const restoreForward = [2, 6].includes(direction) ? !!(movingCode & 64) : direction === 0;
@@ -440,7 +448,7 @@
     cancelWork(); rebuild(); settings[id] = id === 'depth' ? Number($(id).value) : $(id).value;
     selected = -1; legal = []; syncControls(); save(); render(); scheduleAI();
   };
-  for (const id of ['view', 'speed', 'animations']) $(id).onchange = () => {
+  for (const id of ['view', 'speed', 'animations', 'sprites']) $(id).onchange = () => {
     settings[id] = id === 'speed' ? Number($(id).value) : id === 'animations' ? $(id).checked : $(id).value;
     syncControls(); save(); render();
   };
@@ -466,14 +474,17 @@
       const restored = parseSave(JSON.parse(await file.text()));
       if (token !== epoch || position !== game.fen()) { tell('Game load cancelled because the current game changed.'); return; }
       cancelWork(); game = restored.game; settings = restored.settings; settings.sound = false;
-      selected = -1; legal = []; animationWarning = ''; rebuild(); syncControls(); save(); render(); scheduleAI();
+      selected = -1; legal = []; animationWarning = ''; syncControls(); rebuild(); save(); render(); scheduleAI();
     } catch (error) { tell('Could not load game: ' + error.message); }
   };
   async function init() {
     try {
-      const response = await fetch('assets/assets.json');
-      if (!response.ok) throw Error('Artwork request failed: HTTP ' + response.status);
-      assets = new OriginalAssets(await response.json());
+      await Promise.all([['dos', 'assets/assets.json'], ['amiga', 'assets/amiga.json']].map(async ([name, url]) => {
+        const response = await fetch(url);
+        if (!response.ok) throw Error(name + ' artwork request failed: HTTP ' + response.status);
+        spriteSets[name] = new OriginalAssets(await response.json());
+      }));
+      assets = spriteSets.dos;
       const screens = {};
       await Promise.all(['board', 'board-flat'].map(name => new Promise((resolve, reject) => {
         const image = new Image(); image.onload = () => { screens[name] = image; resolve(); };
@@ -484,9 +495,9 @@
         const raw = localStorage.getItem(storageKey);
         if (raw) { const restored = parseSave(JSON.parse(raw)); game = restored.game; settings = restored.settings; settings.sound = false; }
       } catch (_) { storageWarning = 'Saved game could not be restored. Starting a new game.'; }
-      rebuild(); ready = true;
+      ready = true;
       document.querySelectorAll('nav button, nav input, nav select, .actions button').forEach(control => { control.disabled = false; });
-      syncControls(); render();
+      syncControls(); rebuild(); render();
       $('start').disabled = false; $('start').textContent = game.history.length ? 'Continue Game' : 'Play Battle Chess';
     } catch (error) {
       $('loading').hidden = false; $('loading').textContent = 'Unable to load Battle Chess: ' + error.message + '. Serve this folder with python -B serve.py.';

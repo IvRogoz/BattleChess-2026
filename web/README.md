@@ -16,6 +16,8 @@ python -B serve.py
 ```
 
 Open [Battle Chess](http://127.0.0.1:8765/), then select **Play Battle Chess**.
+The title screen uses the original Amiga artwork with all 32 colors. Its
+original DOS image is retained as `assets/title.png`.
 Stop the local server with Ctrl+C. No build, package installation, Node.js,
 external services, CDN requests or account is required. Opening `index.html`
 directly from disk does not provide the HTTP requests used by its assets/worker.
@@ -29,7 +31,7 @@ A separate accessible board provides named square buttons for assistive tools.
 - **Move:** take back, replay the previous move/duel, suggest a move, force a
   computer response while it is thinking.
 - **Settings:** computer or same-device two-player; Red or Blue for the human;
-  original 3D/2D boards; sound; animations; animation speed.
+  original 3D/2D boards; **Sprites: DOS / Amiga**; sound; animations; animation speed.
 - **Level:** three search depths of the existing native computer opponent.
   This is not a port of the original DOS chess AI.
 
@@ -59,7 +61,7 @@ callbacks, animated castling and captures, all 35 usable capture pairings plus
 the unused king/king entry, all walk/turn directions, sound decoding, board hit
 testing, and exact original castle-raster reconstruction after rook morphs.
 
-All 25 checks also passed in the available native V8 tool runtime without
+All 37 checks also passed in the available native V8 tool runtime without
 Node.js. The controller checks use a renderer/worker/DOM double; they do not
 prove browser layout, real worker behavior, browser audio output or animation
 appearance. The Codex in-app browser could not start because its sandbox helper
@@ -93,3 +95,37 @@ not use those PNGs.
 This recreation implements the playable game and original animation resources.
 DOS disk/modem support, the original search engine, original binary saves and
 the original board-setup editor are not implemented.
+
+## DOS and Amiga sprites
+
+Choose **Settings / Sprites / DOS or Amiga**. The choice applies to standing
+pieces, the 2D icons, walking, turns, rook transformations and capture/checkmate
+battles. It is saved with the match and survives reload, imported saves, new
+games and replay. Older saves default to DOS. Switching preserves the position;
+the selector is disabled during an animation.
+
+Amiga sprites use the original 32-color RGB4 palette. Both editions use a
+320×200 screen and the same 253 sequence lengths; the Amiga artwork adds color
+shading rather than extra resolution or animation frames. This setting selects
+sprites; the board, chess logic, sound and playback-speed controls remain shared.
+
+The supplied `BattleChess.adf` is preserved. Its raw king-captures-queen sprite
+stream overlaps filesystem data and fails the recorded frame-length checks.
+The exported Amiga set instead uses the independently downloaded
+[Dragon Inc image](https://archive.org/details/Battle_Chess_1988_Interplay_cr_Dragon_Inc),
+stored separately in `analysis/amiga-sources/`. All 33 sprite groups and 1,676
+stored frames validate, including that battle. No DOS animation substitution
+is used in Amiga mode.
+
+`analysis/export_amiga_assets.py` generates `assets/amiga.json` using Python's
+standard library and the shared decoder. It checks source hashes, decoded byte
+counts, compressed bit counts, 47 exact standing-silhouette matches, and all
+253 sequence lengths. Running it again verifies the existing output and
+preserves it if a mismatch is detected. Source details and the palette/blitter
+trace are recorded in `analysis/amiga-sources/README.md`.
+
+`analysis/export_amiga_title.py` exports `assets/title-amiga.png` from the
+Amiga title block at logical offset 705871. It uses that image's own RGB4
+palette and validates the compressed length, the matching original title
+palette, and all 32 used colors. Full-screen scanline reconstruction continues
+across bitplane boundaries. The exported title was visually inspected.
