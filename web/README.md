@@ -6,6 +6,9 @@ sound blocks, connected to a native JavaScript chess engine. This does not run
 DOS or emulate the original CPU. The separate `battlechess-web/` fantasy prototype
 is not used.
 
+A separate [pywebview desktop launcher and portable Windows build](../desktop/README.md)
+uses these same game files and the system-installed WebView2 runtime.
+
 ## Play
 
 In PowerShell:
@@ -34,10 +37,21 @@ A separate accessible board provides named square buttons for assistive tools.
   original 3D/2D boards; **Sprites: DOS / Amiga**; sound; animations; animation speed.
 - **Level:** three search depths of the existing native computer opponent.
   This is not a port of the original DOS chess AI.
+- **About:** credits **Ivan Rogoz** as the originator of this restoration effort.
 
-Checkmate ends with the original king-defeat battle, using a piece attacking the
-losing king and preferring the preceding mover. That battle is visual; saved
-moves remain legal chess moves, and undo restores the position before mate.
+Checkmate ends the game after the final legal move's animation. Both kings
+remain on the board; there is no subsequent attack or capture of the losing
+king. Replay repeats only the final legal move, and undo restores the position
+before mate.
+
+The game-over message box follows **Settings / Sprites**. DOS uses the original
+EGA blue/yellow box and executable's bitmap font: left click or Enter starts a
+new game; right click or Escape resumes viewing the final board. Its Resume
+prompt also works as a button. Amiga uses the original navy/magenta box and
+Topaz/8 font: left click or Enter continues to the final board. Escape also
+dismisses it. Replay shows the message again after the last legal animation.
+Original checkmate/stalemate wording is retained; modern draw rules use the same
+box style. The overlay scales with the board without dimming the position.
 
 The original animations play on the 3D board. The 2D board and reduced-motion
 mode show completed moves directly. Sound starts off and needs a user gesture
@@ -57,15 +71,20 @@ replacing a played match; invalid saves leave the current game intact.
 server is running. They use isolated in-memory controller doubles and never
 change the saved match. Coverage includes perft (20/400/8,902 and Kiwipete 2,039),
 special moves, draws/mate, legal AI responses, save/undo/promotion, stale AI
-callbacks, animated castling and captures, all 35 usable capture pairings plus
+callbacks, animated castling and captures, all 35 original capture pairings plus
 the unused king/king entry, all walk/turn directions, sound decoding, board hit
 testing, and exact original castle-raster reconstruction after rook morphs.
 
-All 37 checks also passed in the available native V8 tool runtime without
+All 45 checks also passed in the available native V8 tool runtime without
 Node.js. The controller checks use a renderer/worker/DOM double; they do not
 prove browser layout, real worker behavior, browser audio output or animation
-appearance. The Codex in-app browser could not start because its sandbox helper
-failed initialization, so live browser verification remains outstanding.
+appearance. A dedicated headless Chromium recording now verifies an Amiga game
+through capture and checkmate with the original Web Audio effects. It uses an
+isolated profile and captures only the page, without desktop/screen recording.
+The DOS and Amiga message-box layouts and keyboard/mouse-button handlers were
+also checked in that isolated headless page, including focus on Resume versus
+New Game, theme switching, restored matches and retaining both kings.
+Native desktop-window behavior and real AI-worker execution remain unverified.
 
 The original raster renderer was also composed offline from the actual canvas
 renderer and original assets; this was an asset-composition check, not a browser
@@ -99,14 +118,18 @@ the original board-setup editor are not implemented.
 ## DOS and Amiga sprites
 
 Choose **Settings / Sprites / DOS or Amiga**. The choice applies to standing
-pieces, the 2D icons, walking, turns, rook transformations and capture/checkmate
+pieces, the 2D icons, walking, turns, rook transformations and capture
 battles. It is saved with the match and survives reload, imported saves, new
-games and replay. Older saves default to DOS. Switching preserves the position;
+games and replay. Amiga is the default for new games and saves without an
+explicit sprite choice. Saved DOS choices remain available. Switching preserves the position;
 the selector is disabled during an animation.
 
 Amiga sprites use the 32-color RGB4 palette with its four magenta uniform
 shades changed to red at the user's request. Blue pieces and the title keep
 their existing colors; the original palette remains in the source ADF.
+The Amiga message border retains its original magenta shades independently of
+the red army uniforms. Message-box geometry and font provenance are documented
+in `analysis/scene-format.md` and `analysis/fonts/README.md`.
 Both editions use a
 320×200 screen and the same 253 sequence lengths; the Amiga artwork adds color
 shading rather than extra resolution or animation frames. This setting selects

@@ -1,0 +1,7 @@
+.venv/
+.downloads/
+.build-cache/
+build/
+dist/
+runtime/
+data/

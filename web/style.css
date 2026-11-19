@@ -3,11 +3,11 @@
 body { margin: 0; min-height: 100svh; display: grid; place-items: center; padding: 20px; }
 main { width: min(100%, 1000px); border: 2px solid #777; background: #000; box-shadow: 0 0 0 2px #181818; }
 header { display: flex; justify-content: space-between; align-items: center; background: #aaa; color: #000; border-bottom: 2px solid #fff; position: relative; z-index: 5; }
-nav { display: flex; }
+nav { display: flex; flex-wrap: wrap; }
 details { position: relative; }
-summary { list-style: none; cursor: pointer; padding: 10px 15px; font-weight: bold; }
+summary, .menu-heading { list-style: none; cursor: pointer; padding: 10px 15px; font-weight: bold; }
 summary::-webkit-details-marker { display: none; }
-summary:hover, details[open] > summary { color: #fff; background: #00a; }
+summary:hover, details[open] > summary, .menu-heading:hover:not(:disabled) { color: #fff; background: #00a; }
 .wordmark { padding: 0 15px; font-weight: bold; white-space: nowrap; }
 .menu { position: absolute; top: 100%; left: 0; min-width: 215px; padding: 4px; background: #aaa; color: #000; border: 2px solid; border-color: #fff #444 #444 #fff; box-shadow: 5px 5px #0009; }
 .menu button { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: #000; padding: 10px; }
@@ -15,9 +15,10 @@ summary:hover, details[open] > summary { color: #fff; background: #00a; }
 .menu label { display: block; padding: 9px 7px; }
 .menu select { display: block; margin-top: 6px; width: 100%; }
 .settings-menu { width: 255px; }
-nav details:last-child .menu { left: auto; right: 0; }
+nav details:last-of-type .menu { left: auto; right: 0; }
 button, select, input { font: inherit; }
 button, select { color: #fff; background: #242424; border: 1px solid #777; padding: 9px 12px; min-height: 40px; }
+.menu-heading { color: inherit; background: transparent; border: 0; min-height: 0; padding: 10px 15px; }
 select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #fff 50%),linear-gradient(135deg, #fff 50%, transparent 50%); background-position: calc(100% - 15px) 50%,calc(100% - 10px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 28px; }
 input[type=checkbox] { appearance: none; background: #111; border: 2px solid #333; width: 18px; height: 18px; vertical-align: middle; margin: 0 6px 0 0; display: inline-grid; place-items: center; }
 input[type=checkbox]:checked { background: #00a; }
@@ -29,6 +30,12 @@ button:disabled { opacity: .5; cursor: default; }
 .screen { position: relative; width: 100%; aspect-ratio: 4/3; overflow: hidden; background: #000; }
 canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; cursor: crosshair; touch-action: manipulation; }
 canvas:focus-visible { outline-offset: -3px; }
+.original-message { position: absolute; }
+.original-message canvas { cursor: default; }
+.original-message .message-action { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; background: transparent; color: transparent; }
+.original-message .message-action:hover { background: transparent; border: 0; }
+.original-message .message-action:focus-visible { outline: 1px dotted #fff; outline-offset: -1px; }
+.original-message #message-resume { top: 62.264%; height: 37.736%; }
 .splash { position: absolute; inset: 0; background: #000; }
 .splash img { width: 100%; height: 100%; image-rendering: pixelated; }
 .splash button { position: absolute; bottom: 16%; left: 50%; transform: translateX(-50%); white-space: nowrap; background: #000; border: 2px solid #fff; color: #ff5; }
@@ -47,6 +54,7 @@ footer summary { padding: 0; white-space: nowrap; }
 .keyboard-help { margin: 0; padding: 0 18px 14px; color: #888; font-size: .8125rem; }
 dialog { border: 2px solid #aaa; background: #151515; color: #fff; padding: 24px; width: min(440px, calc(100% - 30px)); }
 dialog::backdrop { background: #000a; }
+dialog a { color: #5ff; }
 h1 { font-size: 1.25rem; color: #5ff; margin: 0; }
 .dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 0; }
 #promotion-cancel { margin-top: 12px; }
@@ -57,7 +65,7 @@ h1 { font-size: 1.25rem; color: #5ff; margin: 0; }
 @media (max-width: 680px) {
   body { padding: 0; align-items: start; }
   main { border-width: 0; }
-  summary { padding: 12px 10px; }
+  summary, .menu-heading { padding: 12px 10px; }
   .wordmark { display: none; }
   .command-bar, footer { flex-direction: column; gap: 12px; padding: 12px; }
   .actions { flex-wrap: wrap; }

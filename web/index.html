@@ -12,6 +12,7 @@
   <script defer src="original.js"></script>
   <script defer src="scene-player.js"></script>
   <script defer src="original-audio.js"></script>
+  <script defer src="message-box.js"></script>
   <script defer src="app.js"></script>
 </head>
 <body>
@@ -30,7 +31,7 @@
           <label>Players<select id="mode"><option value="ai">Human / computer</option><option value="local">Two humans</option></select></label>
           <label>Your army<select id="human"><option value="w">Red (moves first)</option><option value="b">Blue</option></select></label>
           <label>Board<select id="view"><option value="3d">3D Board</option><option value="2d">2D Board</option></select></label>
-          <label>Sprites<select id="sprites"><option value="dos">DOS</option><option value="amiga">Amiga</option></select></label>
+          <label>Sprites<select id="sprites"><option value="amiga">Amiga</option><option value="dos">DOS</option></select></label>
           <label><input id="sound" type="checkbox"> Sound</label>
           <label><input id="animations" type="checkbox" checked> Animations</label>
           <label>Animation speed<select id="speed"><option value="1">Normal</option><option value="2">Fast</option><option value="0.5">Slow</option></select></label>
@@ -38,11 +39,18 @@
         <details><summary>Level</summary><div class="menu">
           <label>Computer strength<select id="depth"><option value="1">Level 1</option><option value="2" selected>Level 2</option><option value="3">Level 3</option></select></label>
         </div></details>
+        <button id="about" class="menu-heading" type="button" aria-haspopup="dialog">About</button>
       </nav>
       <span class="wordmark">Battle Chess</span>
     </header>
     <section class="screen" aria-label="Original Battle Chess board">
       <canvas id="board" width="320" height="200" tabindex="0" aria-label="Chess board. Use arrow keys to choose a square, Enter to select, Escape to cancel."></canvas>
+      <div id="game-over" class="original-message" role="dialog" aria-labelledby="message-text" hidden>
+        <canvas id="message-canvas" aria-hidden="true"></canvas>
+        <span id="message-text" class="sr-only"></span>
+        <button id="message-confirm" class="message-action" aria-label="Continue"></button>
+        <button id="message-resume" class="message-action" aria-label="Resume" hidden></button>
+      </div>
       <div id="splash" class="splash">
         <img src="assets/title-amiga.png" alt="Battle Chess, Copyright 1988 Interplay" width="320" height="200">
         <button id="start" disabled>Loading original game data…</button>
@@ -67,6 +75,13 @@
   <dialog id="promotion" aria-labelledby="promotion-heading">
     <h1 id="promotion-heading">Promote pawn</h1><p>Choose your new piece.</p><div id="promotion-choices" class="dialog-actions"></div><button id="promotion-cancel">Cancel</button>
   </dialog>
+  <dialog id="about-dialog" aria-labelledby="about-heading"><form method="dialog">
+    <h1 id="about-heading">About Battle Chess</h1>
+    <p><strong>Ivan Rogoz</strong><br>Originator of this restoration effort.</p>
+    <p><a href="https://warped3.substack.com" target="_blank" rel="noopener noreferrer">warped3.substack.com</a></p>
+    <p>Original game: Battle Chess (1988), Interplay.</p>
+    <div class="dialog-actions"><button id="about-close" value="close" autofocus>Close</button></div>
+  </form></dialog>
   <input id="save-file" type="file" accept="application/json,.json" hidden>
 </body>
 </html>

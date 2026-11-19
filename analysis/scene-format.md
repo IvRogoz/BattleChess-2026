@@ -91,3 +91,45 @@ The native game uses its existing pseudo-move generator with the king's occupanc
 retained as a capturable placeholder to find that attacker. It animates defeat
 without adding an illegal king capture to the chess history. Original fallback
 data and the complete end-of-game task ordering remain unverified.
+
+## Original game-over boxes
+
+The browser deliberately stops at legal checkmate, keeping both kings, then
+shows the original message. It does not reproduce the native king-defeat task.
+`web/message-box.js` draws the following recovered geometry on the same 320x200
+pixel grid as the board, with nearest-neighbour scaling and no backdrop.
+
+DOS addresses refer to `unpacked-image.bin` (DS base `0x5cc20`):
+
+- Handler `0x900a`, message call `0x9098–0x90b5`, message routine `0x1296`.
+  Text at DS:`4ed7`: `Check and mate...Game over.`; DS:`4ef3`:
+  `Stalemate. How boring!`.
+- Normal human-game message mode 2 supplies the two prompt lines:
+  `Left Button or <Enter> for New Game.` and
+  `Right Button or <Esc> to Resume.`
+- Half-width in characters is `floor((max(length,36)+1)/2)`. Checkmate box
+  bounds are `(8,80)..(311,132)` inclusive, 304x53. Text starts at `(16,88)`,
+  prompts at `(16,104)` and `(16,115)`.
+- EGA mode 1 selects BIOS `0x0d` at `0x11017–0x11043`. Colour setup `0x9d–0xdd`
+  uses background pen 1, message 15, prompt/border 14. The selected DOS asset
+  palette gives blue `#0000aa`, white `#ffffff`, yellow `#ffff55`.
+- Border routine `0x1780` fills/background-outlines the outer rectangle then
+  draws three successive inset outlines in pen 14 (`0x17bc–0x17e9`).
+
+Amiga offsets refer to the executable reconstructed from the supplied ADF file
+data blocks 1434..1607; CODE is executable `[40:73028]`, DATA `[73616:84068]`:
+
+- Handler CODE:`94d8`, call at `953e` through DATA:`36` JMP to CODE:`1294`.
+  Message at CODE:`9568` is the same checkmate text. Stalemate at `9584` has
+  two exclamation marks: `Stalemate. How boring!!`.
+- Prompt CODE:`1386`: `=Left Button= to continue.`
+- Half-width uses `floor((max(length,26)+1)/2)`. Checkmate bounds are
+  `(40,80)..(279,120)`, 240x41. Text starts `(48,88)`, prompt `(48,104)`.
+- IntuiText uses message pen 8, background 27 and prompt 23, with NULL font
+  pointer (system Topaz/8). The original RGB4 palette at executable `0x126a2`
+  gives `#eedddd`, `#111166`, `#ffee00`, respectively.
+- Box routine CODE:`1722` draws four successive outlines in pens 31,30,29,28:
+  `#660044`, `#990066`, `#bb1177`, `#ee2277` from outside to inside.
+  These original UI colours are independent of the requested red-uniform remap.
+
+Printable font data and its source are retained in `analysis/fonts/`.

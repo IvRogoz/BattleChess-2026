@@ -1,0 +1,2 @@
+76be319b5d9c6d080073c5d06799ae38eeef217517592003d9ad4c1dd13df5a5  BattleChess 2026 Windows x64.zip
+61fbb9de90798ba7f25fbcaa8fc2eb8aa18ab1e9a250a90f0700fd53273f66d0  BattleChess 2026 HTML.zip

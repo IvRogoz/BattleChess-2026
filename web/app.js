@@ -8,20 +8,27 @@
   const storageKey = 'original-battle-chess-v1';
   const TICK = 2000 / 18.2065;
   const spriteSets = {};
+  const localData = globalThis.BattleChessLocalData;
   let game = new ChessGame(), assets, board, codes, ready = false, started = false;
-  let settings = { mode: 'ai', human: 'w', depth: 2, sound: false, animations: !reduced, speed: 1, view: '3d', sprites: 'dos' };
+  let settings = { mode: 'ai', human: 'w', depth: 2, sound: false, animations: !reduced, speed: 1, view: '3d', sprites: 'amiga' };
   let selected = -1, focus = 52, legal = [], busy = false, thinking = false, epoch = 0, skipRequested = false;
-  let worker = null, aiTimer = null, cancelAnimation = null, pendingPromotion = null;
+  let worker = null, workerURL = null, aiTimer = null, cancelAnimation = null, pendingPromotion = null;
   let audio = null, sounds = new Set(), soundEpoch = 0, lastReplay = null, storageWarning = '', animationWarning = '';
+  let dismissedResult = '', resultKey = '';
   document.querySelectorAll('nav button, nav input, nav select, .actions button').forEach(control => { control.disabled = true; });
 
   function closeMenus() { document.querySelectorAll('nav details').forEach(menu => { menu.open = false; }); }
   function tell(message) { $('status').textContent = message; }
   function stopSounds() { soundEpoch++; for (const source of sounds) source.stop(); sounds.clear(); }
+  function stopWorker() {
+    worker?.terminate(); worker = null;
+    if (workerURL) { URL.revokeObjectURL(workerURL); workerURL = null; }
+  }
   function cancelWork() {
+    dismissedResult = '';
     epoch++;
     clearTimeout(aiTimer); aiTimer = null;
-    if (worker) worker.terminate(); worker = null;
+    stopWorker();
     if (cancelAnimation) cancelAnimation();
     if (pendingPromotion) pendingPromotion(null);
     stopSounds(); busy = false; thinking = false;
@@ -42,7 +49,7 @@
       depth: [1, 2, 3].includes(source.depth) ? source.depth : 2,
       sound: !!source.sound, animations: !!source.animations && !reduced,
       speed: [.5, 1, 2].includes(source.speed) ? source.speed : 1, view: source.view === '2d' ? '2d' : '3d',
-      sprites: source.sprites === 'amiga' ? 'amiga' : 'dos' };
+      sprites: source.sprites === 'dos' ? 'dos' : 'amiga' };
   }
   function savedGame() { return { version: 1, settings, moves: game.history.map(m => [m.from, m.to, m.promotion || 'q']) }; }
   function parseSave(raw) {
@@ -77,19 +84,6 @@
   function rebuild() {
     codes = assets.tables.initialBoard.slice(); lastReplay = null;
     for (const move of game.history) { const before = codes; codes = updateCodes(codes, move); lastReplay = { before, move }; }
-    const victory = mateMove();
-    if (victory) { lastReplay.victory = { before: codes, move: victory }; codes = updateCodes(codes, victory); }
-  }
-  function mateMove() {
-    const state = game.status();
-    if (state.reason !== 'checkmate') return null;
-    const king = game.board.indexOf(game.turn === 'w' ? 'K' : 'k'), view = new ChessGame(game.fen());
-    view.turn = state.winner;
-    // Retain the king's occupancy while allowing the existing move generator to find attackers.
-    view.board[king] = game.turn === 'w' ? 'Q' : 'q';
-    const attackers = view.pseudo().filter(move => move.to === king);
-    const chosen = attackers.find(move => move.from === game.history.at(-1)?.to) || attackers[0];
-    return chosen ? { from: chosen.from, to: king, piece: game.board[chosen.from], captured: game.board[king], promotion: null } : null;
   }
   function syncControls() {
     assets = spriteSets[settings.sprites]; board.assets = assets;
@@ -97,6 +91,31 @@
     for (const id of ['sound', 'animations']) $(id).checked = settings[id];
     $('human').disabled = settings.mode === 'local';
     board.flat = settings.view === '2d';
+  }
+  function dismissResult() {
+    dismissedResult = game.fen() + '|' + settings.sprites;
+    $('game-over').hidden = true; resultKey = ''; $('board').focus();
+  }
+  function confirmResult() {
+    if (settings.sprites === 'dos') { newGame(); $('board').focus(); }
+    else dismissResult();
+  }
+  function renderResult(state) {
+    const key = game.fen() + '|' + settings.sprites;
+    if (!started || busy || thinking || !state.over || dismissedResult === key) {
+      $('game-over').hidden = true; resultKey = '';
+      if (!state.over) dismissedResult = '';
+      return;
+    }
+    if (resultKey === key) return;
+    const box = OriginalMessageBox.draw($('message-canvas'), settings.sprites, state);
+    Object.assign($('game-over').style, { left: box.left / 320 * 100 + '%', top: box.top / 200 * 100 + '%',
+      width: box.width / 320 * 100 + '%', height: box.height / 200 * 100 + '%' });
+    $('message-text').textContent = box.message;
+    $('message-confirm').setAttribute('aria-label', box.prompt);
+    $('message-resume').setAttribute('aria-label', box.resume);
+    $('message-resume').hidden = !box.resume;
+    resultKey = key; closeMenus(); $('game-over').hidden = false; $('message-confirm').focus();
   }
   function render() {
     if (!ready) return;
@@ -131,8 +150,7 @@
     for (let r = 0; r < 8; r++) {
       const row = createGrid ? document.createElement('div') : $('accessible-board').children[r]; row.setAttribute('role', 'row');
       for (let c = 0; c < 8; c++) {
-        const square = r * 8 + c, code = codes[square], symbol = { 1: 'b', 2: 'k', 3: 'n', 4: 'p', 5: 'q', 6: 'r' }[code & 7];
-        const piece = state.reason === 'checkmate' ? symbol && (code & 64 ? symbol.toUpperCase() : symbol) : game.board[square];
+        const square = r * 8 + c, piece = game.board[square];
         const button = createGrid ? document.createElement('button') : row.children[c];
         button.setAttribute('role', 'gridcell'); button.setAttribute('aria-selected', String(square === selected));
         button.setAttribute('aria-disabled', String(busy || thinking || !started || state.over));
@@ -141,6 +159,7 @@
       }
       if (createGrid) $('accessible-board').append(row);
     }
+    renderResult(state);
   }
   function ticks(callback, token) {
     return new Promise((resolve, reject) => {
@@ -315,16 +334,12 @@
     if (!move) return;
     selected = -1; legal = []; busy = true; animationWarning = ''; skipRequested = false;
     codes = updateCodes(before, move); lastReplay = { before, move };
-    const victory = mateMove(), victoryBefore = codes;
-    if (victory) lastReplay.victory = { before: victoryBefore, move: victory };
     const token = epoch; save(); render();
     try {
       await animateMove(before, move, token);
-      if (victory && token === epoch) await animateMove(victoryBefore, victory, token);
     }
     catch (error) { console.error(error); animationWarning = 'Animation could not finish: ' + error.message; }
     if (token !== epoch) return;
-    if (victory) codes = updateCodes(victoryBefore, victory);
     stopSounds(); busy = false; render(); scheduleAI();
   }
   function promotionChoice() {
@@ -356,12 +371,12 @@
     thinking = true; const token = epoch, fen = game.fen(); render();
     const finish = move => {
       if (token !== epoch || fen !== game.fen() || !thinking) return;
-      thinking = false; worker?.terminate(); worker = null;
+      thinking = false; stopWorker();
       if (move) playMove(move.from, move.to, move.promotion || 'q'); else render();
     };
     const fallback = () => {
       if (token !== epoch || fen !== game.fen() || !thinking) return;
-      worker?.terminate(); worker = null;
+      stopWorker();
       aiTimer = setTimeout(() => {
         if (token !== epoch || fen !== game.fen() || !thinking) return;
         try { finish(chooseChessMove(fen, { depth: settings.depth, timeMs: 800 })); }
@@ -369,7 +384,8 @@
       }, 30);
     };
     try {
-      worker = new Worker('ai-worker.js');
+      if (localData) workerURL = URL.createObjectURL(new Blob([localData.workerSource], { type: 'text/javascript' }));
+      worker = new Worker(workerURL || 'ai-worker.js');
       worker.onmessage = event => event.data.error ? fallback() : finish(event.data.move);
       worker.onerror = event => { event.preventDefault(); fallback(); };
       worker.postMessage({ id: token, fen, depth: settings.depth });
@@ -391,10 +407,10 @@
   }
   async function replay() {
     if (!lastReplay || busy || thinking) return;
+    dismissedResult = '';
     closeMenus(); const token = epoch, replayData = lastReplay; busy = true; skipRequested = false; render();
     try {
       await animateMove(replayData.before, replayData.move, token);
-      if (replayData.victory && token === epoch) await animateMove(replayData.victory.before, replayData.victory.move, token);
     }
     catch (error) { console.error(error); animationWarning = 'Replay could not finish: ' + error.message; }
     if (token === epoch) { stopSounds(); busy = false; render(); }
@@ -411,6 +427,14 @@
   });
   $('board').addEventListener('focus', render); $('board').addEventListener('blur', render);
   document.addEventListener('keydown', event => {
+    if ($('about-dialog').open) return;
+    if (!$('game-over').hidden && !$('new-dialog').open && !$('promotion').open &&
+        (event.key === 'Escape' || event.key === 'Enter' &&
+        [ $('message-confirm'), $('message-resume') ].includes(document.activeElement))) {
+      event.preventDefault();
+      if (event.key === 'Enter' && document.activeElement !== $('message-resume')) confirmResult(); else dismissResult();
+      return;
+    }
     if (event.key !== 'Escape') return;
     closeMenus();
     if (cancelAnimation) { skipRequested = true; cancelAnimation(); }
@@ -423,6 +447,10 @@
     if (menu.open) for (const other of document.querySelectorAll('nav details')) if (other !== menu) other.open = false;
   }));
   $('new').onclick = askNew; $('new-shortcut').onclick = askNew;
+  $('about').onclick = () => { closeMenus(); $('about-dialog').showModal(); };
+  $('message-confirm').onclick = confirmResult;
+  $('message-resume').onclick = dismissResult;
+  $('game-over').addEventListener('contextmenu', event => { event.preventDefault(); dismissResult(); });
   $('new-dialog').addEventListener('close', () => { if ($('new-dialog').returnValue === 'start') newGame(); });
   $('undo').onclick = () => { closeMenus(); takeBack(); }; $('takeback').onclick = takeBack;
   $('skip').onclick = () => { skipRequested = true; cancelAnimation?.(); };
@@ -480,6 +508,7 @@
   async function init() {
     try {
       await Promise.all([['dos', 'assets/assets.json'], ['amiga', 'assets/amiga.json']].map(async ([name, url]) => {
+        if (localData) { spriteSets[name] = new OriginalAssets(localData.sprites[name]); return; }
         const response = await fetch(url);
         if (!response.ok) throw Error(name + ' artwork request failed: HTTP ' + response.status);
         spriteSets[name] = new OriginalAssets(await response.json());

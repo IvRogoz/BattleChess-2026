@@ -48,6 +48,11 @@
     if (!Number.isInteger(id) || id < 0 || id >= SoundOffsets.length) {
       throw new Error('Invalid original sound ID');
     }
+    if (root.BattleChessLocalData) {
+      const packed = root.BattleChessLocalData.sounds[id];
+      if (typeof packed !== 'string') throw new Error('Original sound data is missing: ' + id);
+      return play(context, Uint8Array.from(atob(packed), c => c.charCodeAt(0)), pitchAdjustment);
+    }
     const base = (options && options.basePath) || 'assets/blocks/';
     const url = base.replace(/\/?$/, '/') + 'allcanm1-' + SoundOffsets[id] + '.bin';
     if (!blocks.has(url)) {

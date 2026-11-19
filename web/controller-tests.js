@@ -7,14 +7,16 @@ globalThis.runControllerChecks = async function (appSource, assetData, amigaData
   async function setup(saved) {
     const elements = new Map(), store = new Map(), workers = [], frames = new Map(), errors = [];
     let frameId = 0, now = 0, lastCodes, provider;
-    const turns = [];
+    const turns = [], combats = [];
     class TestAssets extends OriginalAssets {
       turnPlayers(code, target) { turns.push([code, target]); return super.turnPlayers(code, target); }
+      combat(attacker, victim) { combats.push([attacker.toLowerCase(), victim.toLowerCase()]); return super.combat(attacker, victim); }
     }
     if (saved !== undefined) store.set('original-battle-chess-v1', JSON.stringify(saved));
     class Element {
-      constructor(id) { this.id = id; this.children = []; this.listeners = {}; this.value = ''; this.checked = false; this.disabled = false; this.hidden = false; this.textContent = ''; this.files = []; }
-      setAttribute() {}
+      constructor(id) { this.id = id; this.children = []; this.listeners = {}; this.style = {}; this.attributes = {}; this.value = ''; this.checked = false; this.disabled = false; this.hidden = false; this.textContent = ''; this.files = []; }
+      setAttribute(name, value) { this.attributes[name] = value; }
+      getContext() { return { createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }), putImageData: image => { this.image = image; } }; }
       addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
       append(child) { this.children.push(child); }
       replaceChildren(...children) { this.children = children; }
@@ -26,9 +28,11 @@ globalThis.runControllerChecks = async function (appSource, assetData, amigaData
       getBoundingClientRect() { return { left: 0, top: 0, width: 320, height: 200 }; }
     }
     const document = {
+      listeners: {},
       activeElement: null,
       getElementById(id) { if (!elements.has(id)) elements.set(id, new Element(id)); return elements.get(id); },
-      createElement(tag) { return new Element(tag); }, querySelectorAll() { return []; }, addEventListener() {}
+      createElement(tag) { return new Element(tag); }, querySelectorAll() { return []; },
+      addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
     };
     const $ = id => document.getElementById(id);
     class Board { constructor(canvas, assets) { this.flat = false; this.assets = assets; } draw(codes) { lastCodes = codes.slice(); provider = this.assets.data.spriteSet || 'dos'; } }
@@ -43,7 +47,8 @@ globalThis.runControllerChecks = async function (appSource, assetData, amigaData
     await settle();
     assert(!$('start').disabled && !$('loading').textContent.startsWith('Unable'), 'startup failed: ' + $('loading').textContent);
     return {
-      $, workers, store, errors, turns, get codes() { return lastCodes; }, get provider() { return provider; },
+      $, workers, store, errors, turns, combats, get codes() { return lastCodes; }, get provider() { return provider; },
+      key(key) { for (const fn of document.listeners.keydown || []) fn({ key, preventDefault() {}, target: document.activeElement }); },
       async flush() { for (let i = 0; frames.size && i < 10000; i++) { const pending = [...frames.values()]; frames.clear(); now += 220; pending.forEach(fn => fn(now)); await settle(); } assert(!frames.size, 'animation did not finish'); await settle(); },
       async move(from, to) { $('accessible-board').children[from >> 3].children[from & 7].click(); $('accessible-board').children[to >> 3].children[to & 7].click(); await settle(); },
       async load(data) { $('save-file').files = [{ size: 100, text: async () => JSON.stringify(data) }]; await $('save-file').onchange(); await settle(); },
@@ -128,9 +133,18 @@ globalThis.runControllerChecks = async function (appSource, assetData, amigaData
       for (const [square, type] of scenario.pieces) assert((app.codes[square] & 7) === type, scenario.name + ' piece ' + square);
     }
   });
+  await check('Sprite defaults and saved selections', async () => {
+    for (const [saved, expected] of [[undefined, 'amiga'], [save([]), 'amiga'],
+      [{ ...save([]), settings: { ...settings, sprites: 'dos' } }, 'dos'],
+      [{ ...save([]), settings: { ...settings, sprites: 'amiga' } }, 'amiga']]) {
+      const app = await setup(saved);
+      assert(app.$('sprites').value === expected && app.provider === (expected === 'dos' ? 'dos' : (amigaData.spriteSet || 'dos')), 'incorrect sprite default or saved selection: ' + expected);
+    }
+  });
   await check('Sprite selection persists across restore, load, new game and replay', async () => {
-    const app = await setup(save([])); app.$('start').click();
-    assert(app.$('sprites').value === 'dos' && app.provider === 'dos', 'old save did not default to DOS');
+    const initial = save([]); initial.settings.sprites = 'dos';
+    const app = await setup(initial); app.$('start').click();
+    assert(app.$('sprites').value === 'dos' && app.provider === 'dos', 'saved DOS selection lost');
     await app.move(52,36); const codes = JSON.stringify(app.codes);
     app.$('sprites').value = 'amiga'; app.$('sprites').onchange(); await settle();
     assert(app.$('sprites').value === 'amiga' && app.provider === (amigaData.spriteSet || 'dos') && JSON.stringify(app.codes) === codes && app.$('move-count').textContent === '1' && app.saved().settings.sprites === 'amiga', 'switch did not preserve game');
@@ -152,7 +166,7 @@ globalThis.runControllerChecks = async function (appSource, assetData, amigaData
     await app.flush(); assert(!app.$('sprites').disabled && !app.errors.length, 'selector remained disabled or animation failed');
   });
   await check('Sprite switch during AI thinking preserves worker', async () => {
-    const initial = save([]); initial.settings.mode = 'ai';
+    const initial = save([]); initial.settings.mode = 'ai'; initial.settings.sprites = 'dos';
     const app = await setup(initial); app.$('start').click(); await app.move(52,36);
     const worker = app.workers.at(-1); assert(worker, 'worker missing');
     app.$('sprites').value = 'amiga'; app.$('sprites').onchange(); await settle();
@@ -160,19 +174,102 @@ globalThis.runControllerChecks = async function (appSource, assetData, amigaData
     worker.respond({ from: 12, to: 28 }); await settle();
     assert(app.$('move-count').textContent === '2' && app.provider === (amigaData.spriteSet || 'dos'), 'AI response or sprite selection lost');
   });
-  await check('Animated checkmate, replay, undo and reload', async () => {
-    const initial = save([[53,45,'q'],[12,28,'q'],[54,38,'q']]); initial.settings.animations = true;
-    const app = await setup(initial); app.$('start').click(); await app.move(3,39); await app.flush();
-    assert(!app.errors.length, 'mate animation: ' + app.errors.join('; '));
-    assert(app.$('move-count').textContent === '4' && app.saved().moves.length === 4, 'mate saved an extra move');
-    assert((app.codes[60] & 7) === 5 && !(app.codes[60] & 64) && !app.codes[39], 'mate renderer codes');
-    const savedMate = app.saved();
-    app.$('replay').click(); await app.flush();
-    assert(!app.errors.length && app.$('move-count').textContent === '4' && app.saved().moves.length === 4, 'mate replay changed history or failed');
-    app.$('undo').click(); await settle();
-    assert(app.$('move-count').textContent === '3' && (app.codes[60] & 7) === 2 && (app.codes[60] & 64), 'undo did not restore king');
-    const restored = await setup(savedMate);
-    assert(restored.$('move-count').textContent === '4' && (restored.codes[60] & 7) === 5 && !(restored.codes[60] & 64) && !restored.codes[39], 'mate reload codes');
+  await check('Checkmate keeps the legal position through replay, skip, reload and undo', async () => {
+    for (const sprites of ['dos', 'amiga']) for (const skip of [false, true]) {
+      const initial = save([[53,45,'q'],[12,28,'q'],[54,38,'q']]);
+      initial.settings.animations = true; initial.settings.sprites = sprites;
+      const app = await setup(initial); app.$('start').click(); await app.move(3,39);
+      if (skip) app.$('skip').click();
+      await app.flush();
+      const legalMate = () => (app.codes[60] & 7) === 2 && (app.codes[4] & 7) === 2 && (app.codes[39] & 7) === 5;
+      assert(legalMate() && app.saved().moves.length === 4 && !app.errors.length, 'incorrect mate position');
+      assert(!app.combats.some(pair => pair[1] === 'k'), 'mate triggered king combat');
+      const savedMate = app.saved();
+      await app.move(60, 52); await app.flush();
+      assert(legalMate() && app.saved().moves.length === 4, 'move accepted after mate');
+      app.$('replay').click(); await app.flush();
+      assert(legalMate() && app.saved().moves.length === 4 && !app.combats.some(pair => pair[1] === 'k'), 'replay changed mate');
+      const restored = await setup(savedMate);
+      assert((restored.codes[60] & 7) === 2 && (restored.codes[4] & 7) === 2 && (restored.codes[39] & 7) === 5, 'reload changed mate');
+      app.$('undo').click(); await settle();
+      assert(app.$('move-count').textContent === '3' && (app.codes[60] & 7) === 2 && (app.codes[3] & 7) === 5, 'undo did not restore position');
+    }
+  });
+  await check('Checkmating capture animates only the legal capture', async () => {
+    for (const sprites of ['dos', 'amiga']) {
+      const initial = save([[52,36,'q'],[12,28,'q'],[61,34,'q'],[1,18,'q'],[59,31,'q'],[6,21,'q']]);
+      initial.settings.animations = true; initial.settings.sprites = sprites;
+      const app = await setup(initial); app.$('start').click(); await app.move(31,13); await app.flush();
+      assert((app.codes[60] & 7) === 2 && (app.codes[4] & 7) === 2 && (app.codes[13] & 7) === 5, 'capture mate position incorrect');
+      assert(app.combats.length === 1 && app.combats[0].join('') === 'qp' && !app.errors.length, 'capture mate played extra or incorrect combat');
+    }
+  });
+  await check('Original game-over overlay follows animation, dismissal and replay', async () => {
+    for (const sprites of ['dos', 'amiga']) for (const skip of [false, true]) {
+      const initial = save([[53,45,'q'],[12,28,'q'],[54,38,'q']]);
+      initial.settings.animations = true; initial.settings.sprites = sprites;
+      const app = await setup(initial); app.$('start').click(); await app.move(3,39);
+      assert(app.$('game-over').hidden, 'result appeared during animation');
+      if (skip) app.$('skip').click();
+      await app.flush();
+      assert(!app.$('game-over').hidden && app.$('message-text').textContent.includes('Check and mate...Game over.'), 'checkmate message missing');
+      assert(app.$('message-resume').hidden === (sprites === 'amiga'), 'wrong resume control');
+      const mate = app.saved();
+      app.key('Escape'); await settle();
+      assert(app.$('game-over').hidden && app.saved().moves.length === 4, 'dismiss changed game');
+      app.$('view').value = '2d'; app.$('view').onchange(); await settle();
+      assert(app.$('game-over').hidden, 'render reopened dismissed message');
+      app.$('view').value = '3d'; app.$('view').onchange(); await settle();
+      app.$('replay').click(); await settle();
+      assert(app.$('game-over').hidden, 'message appeared during replay');
+      await app.flush(); assert(!app.$('game-over').hidden, 'replay did not show message');
+      const restored = await setup(mate);
+      assert(restored.$('game-over').hidden, 'message appeared over title');
+      restored.$('start').click(); await settle();
+      assert(!restored.$('game-over').hidden, 'continue did not show message');
+      restored.key('Escape'); restored.$('undo').click(); await settle();
+      await restored.move(3,39); await restored.flush();
+      assert(!restored.$('game-over').hidden, 'undo and mate did not reset dismissal');
+    }
+  });
+  await check('Original game-over controls and sprite theme switch', async () => {
+    const mate = [[53,45,'q'],[12,28,'q'],[54,38,'q'],[3,39,'q']];
+    const initial = save(mate); initial.settings.sprites = 'dos';
+    const app = await setup(initial); app.$('start').click(); await settle();
+    const dosLeft = app.$('game-over').style.left, dosWidth = app.$('game-over').style.width;
+    app.$('message-resume').focus(); app.key('Enter'); await settle();
+    assert(app.$('game-over').hidden && app.saved().moves.length === 4, 'DOS resume changed game');
+    app.$('sprites').value = 'amiga'; app.$('sprites').onchange(); await settle();
+    assert(!app.$('game-over').hidden && app.$('message-resume').hidden &&
+      (app.$('game-over').style.left !== dosLeft || app.$('game-over').style.width !== dosWidth), 'theme switch did not show Amiga box');
+    app.key('Enter'); await settle();
+    assert(app.$('game-over').hidden && app.saved().moves.length === 4, 'Amiga confirm changed game');
+    app.$('sprites').value = 'dos'; app.$('sprites').onchange(); await settle();
+    app.key('Enter'); await settle();
+    assert(app.$('game-over').hidden && app.saved().moves.length === 0, 'DOS confirm did not start new game');
+  });
+  await check('Original draw message appears after continuing a saved repetition', async () => {
+    const cycle = [[62,45,'q'],[6,21,'q'],[45,62,'q'],[21,6,'q']];
+    const app = await setup(save([...cycle, ...cycle]));
+    assert(app.$('game-over').hidden, 'draw appeared over title');
+    app.$('start').click(); await settle();
+    assert(!app.$('game-over').hidden && /draw|repetition/i.test(app.$('message-text').textContent), 'draw message missing');
+  });
+  await check('Original message renderer geometry, colors and fonts', async () => {
+    const canvas = { getContext() { return { createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }), putImageData: image => { this.image = image; } }; } };
+    const pixels = (x, y) => [...canvas.image.data.slice((y * canvas.width + x) * 4, (y * canvas.width + x) * 4 + 3)].join(',');
+    const dos = OriginalMessageBox.draw(canvas, 'dos', { winner: 'b' });
+    assert(dos.left === 8 && dos.top === 80 && dos.width === 304 && dos.height === 53, 'DOS geometry');
+    assert(pixels(5, 5) === '0,0,170' && pixels(1, 1) === '255,255,85', 'DOS colors');
+    const glyphMask = color => Array.from({ length: 27 * 8 * 8 }, (_, i) => pixels(8 + i % (27 * 8), 8 + Math.floor(i / (27 * 8))) === color);
+    const dosText = glyphMask('255,255,255');
+    const amiga = OriginalMessageBox.draw(canvas, 'amiga', { winner: 'b' });
+    assert(amiga.left === 40 && amiga.top === 80 && amiga.width === 240 && amiga.height === 41, 'Amiga geometry');
+    assert(pixels(5, 5) === '17,17,102' && pixels(0, 0) === '102,0,68' && pixels(3, 3) === '238,34,119', 'Amiga colors');
+    const amigaText = glyphMask('238,221,221');
+    assert(dosText.some((value, i) => value !== amigaText[i]), 'fonts rendered identically');
+    assert(OriginalMessageBox.draw(canvas, 'dos', { reason: 'stalemate' }).message.endsWith('boring!') &&
+      OriginalMessageBox.draw(canvas, 'amiga', { reason: 'stalemate' }).message.endsWith('boring!!'), 'stalemate punctuation');
   });
   await check('Stale AI callbacks after new, load and undo', async () => {
     for (const action of ['new', 'load', 'undo']) {
